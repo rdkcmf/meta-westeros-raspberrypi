@@ -13,7 +13,7 @@ if [ ! -f "poky/oe-init-build-env" ]; then
 fi
 
 # Warning: Sourcing the oe-init-build-env script changes the current directory.
-source poky/oe-init-build-env 
+source poky/oe-init-build-env rpi-wpe-build
 
 bitbake-layers add-layer ../meta-raspberrypi 
 bitbake-layers add-layer ../meta-metrological/
