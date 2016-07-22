@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+if [ "$0" = "${BASH_SOURCE}" ]; then
+    echo -e "\nERROR: This script must not be executed but sourced like below"
+    echo -e "\n. $0 \nor \nsource $0"
+    exit 1
+fi
+
+# check that we are where we think we are!
+if [ ! -f "poky/oe-init-build-env" ]; then
+    echo -e "\nUnable to find Poky!"
+    return 1
+fi
+
+# Warning: Sourcing the oe-init-build-env script changes the current directory.
+source poky/oe-init-build-env 
+
+echo 'MACHINE = "raspberrypi2"' >> conf/local.conf
+
