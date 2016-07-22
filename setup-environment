@@ -15,11 +15,15 @@ fi
 # Warning: Sourcing the oe-init-build-env script changes the current directory.
 source poky/oe-init-build-env rpi-wpe-build
 
+echo "Adding layers..."
 bitbake-layers add-layer ../meta-raspberrypi 
 bitbake-layers add-layer ../meta-metrological/
 bitbake-layers add-layer ../meta-openembedded/meta-oe/
 bitbake-layers add-layer ../meta-openembedded/meta-multimedia/
 bitbake-layers add-layer ../meta-westeros-raspberrypi/
 
+echo "Setting config..."
 echo 'MACHINE = "raspberrypi2"' >> conf/local.conf
+echo 'BBMASK = "meta-metrological/recipes-qt"' >> conf/local.conf
 
+echo "Done!"
