@@ -25,6 +25,6 @@ bitbake-layers add-layer ../meta-westeros-raspberrypi/
 echo "Setting config..."
 echo 'MACHINE = "raspberrypi2"' >> conf/local.conf
 echo 'BBMASK = "meta-metrological/recipes-qt"' >> conf/local.conf
-echo 'PREFERRED_VERSION_linux-raspberrypi = “4.4"' >> conf/local.conf
+#echo 'PREFERRED_VERSION_linux-raspberrypi ?= “4.4%"' >> conf/local.conf
 
 echo "Done!"
