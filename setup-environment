@@ -27,4 +27,8 @@ echo 'MACHINE = "raspberrypi2"' >> conf/local.conf
 echo 'BBMASK = "meta-metrological/recipes-qt"' >> conf/local.conf
 echo 'PREFERRED_VERSION_linux-raspberrypi ?= "4.4%"' >> conf/local.conf
 
+# Needed for external_src build.
+export ROOT_PATH=$(cd .. ; pwd)
+export BB_ENV_EXTRAWHITE="${BB_ENV_EXTRAWHITE} ROOT_PATH"
+
 echo "Done!"
