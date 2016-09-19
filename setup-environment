@@ -6,29 +6,130 @@ if [ "$0" = "${BASH_SOURCE}" ]; then
     exit 1
 fi
 
-# check that we are where we think we are!
-if [ ! -f "poky/oe-init-build-env" ]; then
-    echo -e "\nUnable to find Poky!"
+if [ -z "$BASH" -a -z "$ZSH_NAME" ] ;then
+    echo Please source this script in bash or zsh shell
     return 1
 fi
 
+# check that we are not root!
+if [ "$(whoami)" = "root" ]; then
+    echo -e "\nERROR: do not use the BSP as root. Exiting..."
+    return 1
+fi
+
+# check that we are where we think we are!
+if [ ! -f "poky/oe-init-build-env" ]; then
+    echo -e "\nUNABLE TO FIND POKY !"
+    return 1
+fi
+
+usage () {
+    cat <<EOF
+Usage: [MACHINE=<MACHINE>] source $BASH_SOURCE [BUILDDIR]
+If no MACHINE is set, list all possible machines, and ask user to choose.
+EOF
+}
+
+# Clean up PATH for local dirs starting with .
+export PATH="`echo ${PATH} | sed 's/\(:.\|:\)*:/:/g;s/^.\?://;s/:.\?$//'`"
+
+# only 1 parameter max, <build> folder, or default to build-$machine
+_BUILDDIR="rpi-wpe-build"
+if [ $# -gt 1 ]; then
+    usage
+    return 1
+elif [ $# -eq 1 ]; then
+    _BUILDDIR=$1
+    # check if this <build> folder was already configured
+    _CONFIGS_FOUND=
+    if [ -f ${_BUILDDIR}/conf/local.conf ] && \
+        [ -f ${_BUILDDIR}/conf/bblayers.conf ]; then
+        _CONFIGS_FOUND="yes"
+    fi
+fi
+
+# if no MACHINE is set, list common machines and ask user.
+# Note: filter out meta-linaro and non-x86 qemu machines from this list to
+# avoid confusion (it's still possible to select any valid machine manually).
+while [ -z "$MACHINE" ] && [ -z "$_CONFIGS_FOUND" ]; do
+    _options=$(\ls -1 *{,/*}/conf/machine/*.conf 2>/dev/null | grep -v '\(^meta-linaro\|^meta-intel\|/qemumips\|/qemuppc\)')
+    _options_count=`echo ${_options} | wc -w`
+    PS3="Please enter your choice of machine [1..${_options_count}]: "
+    select opt in `echo $_options`
+    do
+        if [ -z "$opt" ]; then
+            echo "Invalid choice"
+        else
+            MACHINE=$(echo $opt | sed 's|.*/\(.*\)\.conf|\1|')
+            break;
+        fi
+    done
+    unset PS3 _options_count _options
+done
+
+# at this point, MACHINE is set, either from env, or explicitely
+# BUILDIR is either set from command line, or needs to be set to build-$MACHINE
+if [ -z "$_BUILDDIR" ]; then
+    _BUILDDIR=build-$MACHINE
+    # check if this build-$MACHINE folder was already configured
+    if [ -f ${_BUILDDIR}/conf/local.conf ] && \
+        [ -f ${_BUILDDIR}/conf/bblayers.conf ]
+    then
+        _CONFIGS_FOUND="yes"
+    fi
+fi
+
+_PWD_PREV=$(pwd)
+
 # Warning: Sourcing the oe-init-build-env script changes the current directory.
-source poky/oe-init-build-env rpi-wpe-build
+source poky/oe-init-build-env $_BUILDDIR
+
+if [ "$_CONFIGS_FOUND" ]; then
+    echo -e "\nConfig files already exist in folder ${_BUILDDIR}/conf/, they were not modified."
+    unset -f usage
+    unset _BUILDDIR _CONFIGS_FOUND _PWD_PREV MACHINE
+    return 0
+fi
 
 echo "Adding layers..."
-bitbake-layers add-layer ../meta-raspberrypi 
+bitbake-layers add-layer ../meta-raspberrypi/
 bitbake-layers add-layer ../meta-metrological/
 bitbake-layers add-layer ../meta-openembedded/meta-oe/
 bitbake-layers add-layer ../meta-openembedded/meta-multimedia/
 bitbake-layers add-layer ../meta-westeros-raspberrypi/
 
 echo "Setting config..."
-echo 'MACHINE = "raspberrypi2"' >> conf/local.conf
 echo 'BBMASK = "meta-metrological/recipes-qt"' >> conf/local.conf
 echo 'PREFERRED_VERSION_linux-raspberrypi ?= "4.4%"' >> conf/local.conf
+
+# Check the machine type specified
+_VALID_MACHINES=$(\ls -1 ${_PWD_PREV}/*{,/*}/conf/machine/${MACHINE}.conf 2>/dev/null | wc -l)
+if [ "$_VALID_MACHINES" -eq 0 ]; then
+    echo -e "\n##\n## WARNING: No machine configs found for '$MACHINE' !"
+    echo -e "##\n## That looks very suspicious, you should check your configuration"
+    echo -e "##\n## Possible alternatives might be:\n##"
+    ( cd ${_PWD_PREV} && \ls -1 *{,/*}/conf/machine/*.conf 2>/dev/null | sed 's|.*/\(.*\)\.conf|##   \1|' | sort | uniq )
+    echo -e "##"
+elif [ "$_VALID_MACHINES" -gt 1 ]; then
+    echo -e "\n##\n## WARNING: Multiple possible machine configs found for '$MACHINE' !\n##"
+    ( cd ${_PWD_PREV} && \ls -1 *{,/*}/conf/machine/${MACHINE}.conf 2>/dev/null | sed 's|^|##   |' )
+    echo -e "##\n## That looks very suspicious, you should check your source tree\n##"
+fi
+
+# Change settings according environment
+echo "MACHINE = \"$MACHINE\"" >> conf/local.conf
 
 # Needed for external_src build.
 export ROOT_PATH=$(cd .. ; pwd)
 export BB_ENV_EXTRAWHITE="${BB_ENV_EXTRAWHITE} ROOT_PATH"
 
-echo "Done!"
+cat << EOF
+
+Configuration files have been created for the following configuration:
+ MACHINE: $MACHINE
+
+EOF
+
+# Since this script is sourced, be careful not to pollute caller's environment with temp variables
+unset -f usage
+unset _BUILDDIR _CONFIGS_FOUND _PWD_PREV _VALID_MACHINES MACHINE
